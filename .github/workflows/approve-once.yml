@@ -1,0 +1,73 @@
+name: Approve sandbox PR once
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to approve
+        required: true
+        type: string
+      expected_head_sha:
+        description: Full current head SHA of that PR
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: sandbox-approval-${{ inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  approve:
+    if: github.ref == 'refs/heads/main' && github.actor == github.repository_owner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # This job never checks out or executes PR code.
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          ALLOWED_OWNER: edgibbs
+          PR_NUMBER: ${{ inputs.pr_number }}
+          EXPECTED_SHA: ${{ inputs.expected_head_sha }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            if (owner !== process.env.ALLOWED_OWNER || repo !== 'mergify-stack-sandbox' ||
+                context.ref !== 'refs/heads/main' || context.actor !== owner) {
+              throw new Error('Run from main as the owner of the personal sandbox.');
+            }
+            const pull_number = Number(process.env.PR_NUMBER);
+            const expected = process.env.EXPECTED_SHA;
+            if (!Number.isSafeInteger(pull_number) || pull_number < 1 ||
+                !/^[0-9a-f]{40}$/.test(expected)) {
+              throw new Error('Provide a PR number and a full lowercase head SHA.');
+            }
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
+            if (pr.state !== 'open' || pr.draft || pr.user.login !== owner ||
+                pr.head.repo?.full_name !== `${owner}/${repo}` ||
+                !pr.head.ref.startsWith('test/') ||
+                !(pr.base.ref === 'main' || pr.base.ref.startsWith('test/'))) {
+              throw new Error('Select an open owner-authored test PR in this repository.');
+            }
+            if (pr.head.sha !== expected) {
+              throw new Error('The PR head changed. Inspect it and supply its current SHA.');
+            }
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner, repo, pull_number, per_page: 100
+            });
+            if (reviews.some(review => review.user?.login === 'github-actions[bot]')) {
+              throw new Error('The bot has already reviewed this PR. Use a new PR, not a fresh approval.');
+            }
+            const { data: review } = await github.rest.pulls.createReview({
+              owner, repo, pull_number, commit_id: expected, event: 'APPROVE',
+              body: 'One-time sandbox approval to test review retention. No automatic reapproval.'
+            });
+            await core.summary.addHeading('Sandbox approval recorded').addTable([
+              [{ data: 'Field', header: true }, { data: 'Value', header: true }],
+              ['PR', `#${pull_number}`], ['Head', expected],
+              ['Reviewer', review.user.login], ['Review ID', String(review.id)],
+              ['State', review.state]
+            ]).write();

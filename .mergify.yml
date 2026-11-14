@@ -1,0 +1,17 @@
+merge_queue:
+  max_parallel_checks: 1
+
+queue_rules:
+  - name: default
+    queue_conditions:
+      - base = main
+      - check-success = Sandbox CI
+      - github-review-decision = APPROVED
+    merge_conditions:
+      - label = allow-test-merge
+    branch_protection_injection_mode: queue
+    batch_size: 2
+    batch_max_wait_time: 30 seconds
+    batch_max_failure_resolution_attempts: 0
+    max_checks_retries: 0
+    merge_method: squash

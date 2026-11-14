@@ -1,0 +1,31 @@
+name: Sandbox CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  push:
+    branches: [main, 'mergify/**']
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Sandbox CI
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Record main branch update
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          jq '{ref, before, after, commit_ids: [.commits[]?.id]}' "$GITHUB_EVENT_PATH"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Check the sandbox failure switch
+        run: |
+          if test -e fail-ci.txt; then
+            echo 'Intentional sandbox CI failure: fail-ci.txt exists.'
+            exit 1
+          fi
+          echo 'Sandbox CI passed.'
