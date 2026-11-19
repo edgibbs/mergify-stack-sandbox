@@ -1,5 +1,11 @@
+commands_restrictions:
+  queue:
+    conditions:
+      - sender-permission >= write
+
 merge_queue:
-  max_parallel_checks: 1
+  max_parallel_checks: 28
+  skip_intermediate_results: true
 
 queue_rules:
   - name: default
@@ -7,9 +13,13 @@ queue_rules:
       - base = main
       - check-success = Sandbox CI
       - github-review-decision = APPROVED
-    branch_protection_injection_mode: queue
-    batch_size: 2
+
+    merge_conditions:
+      # A merge freeze window, placed where it will not block a test run.
+      - schedule != Sun-Sun 03:00-03:05[UTC]
+
+    batch_size: 1
     batch_max_wait_time: 30 seconds
     batch_max_failure_resolution_attempts: 0
-    max_checks_retries: 0
+    max_checks_retries: 1
     merge_method: squash
