@@ -8,7 +8,7 @@ queue_rules:
       - check-success = Sandbox CI
       - github-review-decision = APPROVED
     branch_protection_injection_mode: queue
-    batch_size: 3
+    batch_size: 2
     batch_max_wait_time: 30 seconds
     batch_max_failure_resolution_attempts: 0
     max_checks_retries: 0
