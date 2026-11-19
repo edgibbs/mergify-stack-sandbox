@@ -23,3 +23,9 @@ queue_rules:
     batch_max_failure_resolution_attempts: 0
     max_checks_retries: 1
     merge_method: squash
+
+merge_protections_settings:
+  # A standing rule: a pull request carrying this label is queued without a queue command.
+  auto_merge_conditions:
+    - label = autoqueue
+    - base = main
