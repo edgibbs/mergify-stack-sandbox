@@ -35,6 +35,8 @@ queue_rules:
       - schedule != Sun-Sun 03:00-03:05[UTC]
 
     batch_size: 2
+    # The slow check takes three minutes. Without this, the timeout is derived from recent CI runtime.
+    checks_timeout: 10 minutes
     batch_max_wait_time: 30 seconds
     batch_max_failure_resolution_attempts: 0
     max_checks_retries: 1
