@@ -1,10 +1,14 @@
 name: Slow check
 
 # A stand-in for a CI job that starts only when someone asks for it in a
-# pull request comment. It never checks out or runs pull request code.
+# pull request comment. Queue test PRs are the exception: there it starts by
+# itself, the way a CI poller would pick them up. It never checks out or runs
+# pull request code.
 on:
   issue_comment:
     types: [created]
+  pull_request:
+    types: [opened, reopened, synchronize]
 
 permissions:
   checks: write
@@ -15,10 +19,13 @@ jobs:
   run:
     name: Run slow check
     if: >-
-      github.event.issue.pull_request &&
-      github.event.comment.body == 'slow-check' &&
-      (github.event.comment.user.login == github.repository_owner ||
-       github.event.comment.user.login == 'mergify[bot]')
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       github.event.comment.body == 'slow-check' &&
+       (github.event.comment.user.login == github.repository_owner ||
+        github.event.comment.user.login == 'mergify[bot]')) ||
+      (github.event_name == 'pull_request' &&
+       startsWith(github.head_ref, 'mergify/merge-queue/'))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -33,10 +40,10 @@ jobs:
               return;
             }
             const head_sha = pr.head.sha;
-            const asker = context.payload.comment.user.login;
+            const asker = context.payload.comment?.user.login;
             const { data: run } = await github.rest.checks.create({
               owner, repo, name: 'Slow check', head_sha, status: 'in_progress',
-              output: { title: 'Running', summary: `Started by a comment from ${asker}.` }
+              output: { title: 'Running', summary: asker ? `Started by a comment from ${asker}.` : 'Started by itself on a queue test PR.' }
             });
             let conclusion = 'failure';
             let summary = 'The slow check stopped before it finished.';
