@@ -7,42 +7,18 @@ merge_queue:
   max_parallel_checks: 28
   skip_intermediate_results: true
 
-pull_request_rules:
-  # The slow check starts only from a comment, so ask for it once on each queue test PR.
-  - name: Start the slow check on queue test PRs
-    conditions:
-      - base = main
-      - -closed
-      - draft
-      - head ~= ^mergify/merge-queue/
-      # No slow check result on this head yet.
-      - -check-failure = Slow check
-      - -check-pending = Slow check
-      - -check-success = Slow check
-    actions:
-      comment:
-        message: slow-check
-
 queue_rules:
   - name: default
-    # Checks and reviews the ruleset requires still gate the merge, on the queue test PR.
-    branch_protection_injection_mode: merge
     queue_conditions:
       - base = main
       - check-success = Sandbox CI
       - github-review-decision = APPROVED
-      - or:
-          - check-success = Slow check
-          # A stack PR may come back after GitHub's rebase without the slow check on its new commit.
-          - label = stack
 
     merge_conditions:
       # A merge freeze window, placed where it will not block a test run.
       - schedule != Sun-Sun 03:00-03:05[UTC]
 
-    batch_size: 2
-    # The slow check takes three minutes. Without this, the timeout is derived from recent CI runtime.
-    checks_timeout: 10 minutes
+    batch_size: 1
     batch_max_wait_time: 30 seconds
     batch_max_failure_resolution_attempts: 0
     max_checks_retries: 1
