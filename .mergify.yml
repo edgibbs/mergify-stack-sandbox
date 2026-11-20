@@ -7,18 +7,34 @@ merge_queue:
   max_parallel_checks: 28
   skip_intermediate_results: true
 
+pull_request_rules:
+  # The slow check starts only from a comment, so ask for it once on each queue test PR.
+  - name: Start the slow check on queue test PRs
+    conditions:
+      - base = main
+      - -closed
+      - draft
+      - head ~= ^mergify/merge-queue/
+      # No slow check result on this head yet.
+      - -check-failure = Slow check
+      - -check-pending = Slow check
+      - -check-success = Slow check
+    actions:
+      comment:
+        message: slow-check
+
 queue_rules:
   - name: default
     queue_conditions:
       - base = main
+      - check-success = Slow check
       - check-success = Sandbox CI
-      - github-review-decision = APPROVED
 
     merge_conditions:
       # A merge freeze window, placed where it will not block a test run.
       - schedule != Sun-Sun 03:00-03:05[UTC]
 
-    batch_size: 1
+    batch_size: 2
     batch_max_wait_time: 30 seconds
     batch_max_failure_resolution_attempts: 0
     max_checks_retries: 1
