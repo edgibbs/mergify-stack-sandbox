@@ -1,0 +1,59 @@
+name: Slow check
+
+# A stand-in for a CI job that starts only when someone asks for it in a
+# pull request comment. It never checks out or runs pull request code.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  checks: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  run:
+    name: Run slow check
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.body == 'slow-check' &&
+      (github.event.comment.user.login == github.repository_owner ||
+       github.event.comment.user.login == 'mergify[bot]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.issue.number;
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
+            if (pr.state !== 'open' || pr.head.repo?.full_name !== `${owner}/${repo}`) {
+              core.notice('Not an open pull request from this repository. Nothing to do.');
+              return;
+            }
+            const head_sha = pr.head.sha;
+            const asker = context.payload.comment.user.login;
+            const { data: run } = await github.rest.checks.create({
+              owner, repo, name: 'Slow check', head_sha, status: 'in_progress',
+              output: { title: 'Running', summary: `Started by a comment from ${asker}.` }
+            });
+            let conclusion = 'failure';
+            let summary = 'The slow check stopped before it finished.';
+            try {
+              // Three minutes of pretend work.
+              await new Promise(resolve => setTimeout(resolve, 180000));
+              try {
+                await github.rest.repos.getContent({ owner, repo, path: 'fail-slow-check.txt', ref: head_sha });
+                summary = 'Intentional failure: fail-slow-check.txt exists on this commit.';
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                conclusion = 'success';
+                summary = 'No failure switch on this commit.';
+              }
+            } finally {
+              await github.rest.checks.update({
+                owner, repo, check_run_id: run.id, status: 'completed', conclusion,
+                output: { title: conclusion === 'success' ? 'Passed' : 'Failed', summary }
+              });
+            }
