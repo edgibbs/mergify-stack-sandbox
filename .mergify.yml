@@ -25,10 +25,16 @@ pull_request_rules:
 
 queue_rules:
   - name: default
+    # Checks and reviews the ruleset requires still gate the merge, on the queue test PR.
+    branch_protection_injection_mode: merge
     queue_conditions:
       - base = main
-      - check-success = Slow check
       - check-success = Sandbox CI
+      - github-review-decision = APPROVED
+      - or:
+          - check-success = Slow check
+          # A stack PR may come back after GitHub's rebase without the slow check on its new commit.
+          - label = stack
 
     merge_conditions:
       # A merge freeze window, placed where it will not block a test run.
